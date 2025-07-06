@@ -1,0 +1,2 @@
+[2025-07-04 02:11:50] Admin management error: SQLSTATE[23000]: Integrity constraint violation: 1062 Duplicate entry 'riris' for key 'username'
+[2025-07-04 13:48:10] Animal module error: SQLSTATE[22007]: Invalid datetime format: 1292 Incorrect date value: '20005-04-03' for column `pet_clinic`.`animals`.`date_of_birth` at row 1
