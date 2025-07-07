@@ -57,7 +57,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             case 'delete_user':
                 $user_id = $_POST['user_id'];
                 $stmt = $db->prepare("DELETE FROM users WHERE user_id=? AND user_id != ?");
-                $stmt->execute([$user_id, $_SESSION['user_id']]);
+
+                // Prevent deleting the current user
+                if ($user_id != $_SESSION['user_id']) {
+                    $stmt->execute([$user_id, $_SESSION['user_id']]);
+                } else {
+                    $error = "Cannot delete your own account";
+                }
+
+                // Check if the user is a doctor and delete the doctor record if it exists
+                $stmt = $db->prepare("SELECT * FROM doctors WHERE user_id = ?");
+                $stmt->execute([$user_id]);
+                $doctorRecord = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($doctorRecord) {
+                    $db->query("DELETE FROM doctors WHERE user_id = $user_id");
+                }
+
                 $message = "User deleted successfully!";
                 break;
         }
@@ -70,6 +86,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 // Get data based on current module
 $db = getDB();
 $data = [];
+
+// Add doctor user mapping
+$doctorMap = [];
+if ($module == 'users') {
+    try {
+        $stmt = $db->query("SELECT user_id, doctor_id FROM doctors");
+        $doctorMappings = $stmt->fetchAll();
+        foreach ($doctorMappings as $dr) {
+            $doctorMap[$dr['user_id']] = $dr['doctor_id'];
+        }
+    } catch (PDOException $e) {
+        logError('Doctor mapping error: ' . $e->getMessage());
+    }
+}
 
 try {
     switch ($module) {
@@ -252,6 +282,60 @@ try {
                         </form>
                     </div>
 
+                    <!-- Edit User Form -->
+                    <div class="form-container" id="editUserForm" style="display: none;">
+                        <h3>Edit User</h3>
+                        <form method="POST" action="?action=edit_user&module=users">
+                            <input type="hidden" name="user_id" id="edit_user_id">
+                            <div class="form-row">
+                                <div class="form-col">
+                                    <label>Username:</label>
+                                    <input type="text" name="username" id="edit_username" required>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-col">
+                                    <label>Password</label>
+                                    <input type="password" name="password" id="edit_password">
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-col">
+                                    <label>Full Name</label>
+                                    <input type="text" name="full_name" id="edit_full_name" required>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-col">
+                                    <label>Email</label>
+                                    <input type="email" name="email" id="edit_email">
+                                </div>
+                            </div>
+
+
+                            <div class="form-row">
+                                <div class="form-col">
+                                    <label>Role</label>
+                                    <select name="role" id="edit_role" required>
+                                        <option value="staff">Staff</option>
+                                        <option value="doctor">Doctor</option>
+                                        <option value="admin">Admin</option>
+                                    </select>
+                                </div>
+                            </div>
+
+
+                            <div class="action-buttons">
+                                <button type="submit" class="btn btn-success">Update User</button>
+                                <button type="button" onclick="cancelEditUser()" class="btn btn-secondary">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+
+
                     <!-- Users Table -->
                     <div class="table-container">
                         <table class="data-table">
@@ -281,17 +365,19 @@ try {
                                         <td><?php echo formatDate($user['created_at']); ?></td>
                                         <td>
                                             <div class="action-buttons">
-                                                <button onclick="editUser(<?php echo $user['user_id']; ?>)" class="btn btn-warning">Edit</button>
+                                                <button onclick="showEditForm('<?php echo $user['user_id']; ?>', '<?php echo $user['username']; ?>', '<?php echo $user['full_name']; ?>', '<?php echo $user['email']; ?>', '<?php echo $user['role']; ?>')" class="btn btn-warning">Edit</button>
                                                 <?php if ($user['user_id'] != $_SESSION['user_id']): ?>
                                                     <button onclick="deleteUser(<?php echo $user['user_id']; ?>)" class="btn btn-danger">Delete</button>
                                                 <?php endif; ?>
                                             </div>
+
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
                     </div>
+
 
                 <?php elseif ($module == 'doctors'): ?>
                     <div class="section-header">
@@ -331,91 +417,93 @@ try {
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
-                    </div>
 
-                <?php elseif ($module == 'animals'): ?>
-                    <div class="section-header">
-                        <h2>Animal Management</h2>
-                        <a href="../animal/animal.php?action=add" class="btn btn-success">Add New Animal</a>
-                    </div>
 
-                    <div class="table-container">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Code</th>
-                                    <th>Name</th>
-                                    <th>Species</th>
-                                    <th>Race</th>
-                                    <th>Owner</th>
-                                    <th>Age</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($data as $animal): ?>
+
+
+                    <?php elseif ($module == 'animals'): ?>
+                        <div class="section-header">
+                            <h2>Animal Management</h2>
+                            <a href="../animal/animal.php?action=add" class="btn btn-success">Add New Animal</a>
+                        </div>
+
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
                                     <tr>
-                                        <td><?php echo $animal['animal_id']; ?></td>
-                                        <td><?php echo htmlspecialchars($animal['animal_code']); ?></td>
-                                        <td><?php echo htmlspecialchars($animal['animal_name']); ?></td>
-                                        <td><?php echo ucfirst($animal['species']); ?></td>
-                                        <td><?php echo htmlspecialchars($animal['race']); ?></td>
-                                        <td><?php echo htmlspecialchars($animal['owner_name']); ?></td>
-                                        <td><?php echo $animal['age']; ?></td>
-                                        <td>
-                                            <div class="action-buttons">
-                                                <a href="../animal/animal.php?action=edit&id=<?php echo $animal['animal_id']; ?>" class="btn btn-warning">Edit</a>
-                                                <a href="../animal/animal.php?action=delete&id=<?php echo $animal['animal_id']; ?>" class="btn btn-danger" onclick="return confirm('Are you sure?')">Delete</a>
-                                            </div>
-                                        </td>
+                                        <th>ID</th>
+                                        <th>Code</th>
+                                        <th>Name</th>
+                                        <th>Species</th>
+                                        <th>Race</th>
+                                        <th>Owner</th>
+                                        <th>Age</th>
+                                        <th>Actions</th>
                                     </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($data as $animal): ?>
+                                        <tr>
+                                            <td><?php echo $animal['animal_id']; ?></td>
+                                            <td><?php echo htmlspecialchars($animal['animal_code']); ?></td>
+                                            <td><?php echo htmlspecialchars($animal['animal_name']); ?></td>
+                                            <td><?php echo ucfirst($animal['species']); ?></td>
+                                            <td><?php echo htmlspecialchars($animal['race']); ?></td>
+                                            <td><?php echo htmlspecialchars($animal['owner_name']); ?></td>
+                                            <td><?php echo $animal['age']; ?></td>
+                                            <td>
+                                                <div class="action-buttons">
+                                                    <a href="../animal/animal.php?action=edit&id=<?php echo $animal['animal_id']; ?>" class="btn btn-warning">Edit</a>
+                                                    <a href="../animal/animal.php?action=delete&id=<?php echo $animal['animal_id']; ?>" class="btn btn-danger" onclick="return confirm('Are you sure?')">Delete</a>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
 
-                <?php elseif ($module == 'owners'): ?>
-                    <div class="section-header">
-                        <h2>Animal Owner Management</h2>
-                        <a href="../owner/animal_owner.php?action=add" class="btn btn-success">Add New Owner</a>
-                    </div>
+                    <?php elseif ($module == 'owners'): ?>
+                        <div class="section-header">
+                            <h2>Animal Owner Management</h2>
+                            <a href="../owner/animal_owner.php?action=add" class="btn btn-success">Add New Owner</a>
+                        </div>
 
-                    <div class="table-container">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Code</th>
-                                    <th>Name</th>
-                                    <th>Phone</th>
-                                    <th>Email</th>
-                                    <th>Address</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($data as $owner): ?>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
                                     <tr>
-                                        <td><?php echo $owner['owner_id']; ?></td>
-                                        <td><?php echo htmlspecialchars($owner['owner_code']); ?></td>
-                                        <td><?php echo htmlspecialchars($owner['owner_name']); ?></td>
-                                        <td><?php echo htmlspecialchars($owner['telephone_number']); ?></td>
-                                        <td><?php echo htmlspecialchars($owner['email']); ?></td>
-                                        <td><?php echo htmlspecialchars(substr($owner['address'], 0, 50)) . '...'; ?></td>
-                                        <td>
-                                            <div class="action-buttons">
-                                                <a href="../owner/animal_owner.php?action=edit&id=<?php echo $owner['owner_id']; ?>" class="btn btn-warning">Edit</a>
-                                                <a href="../owner/animal_owner.php?action=delete&id=<?php echo $owner['owner_id']; ?>" class="btn btn-danger" onclick="return confirm('Are you sure?')">Delete</a>
-                                            </div>
-                                        </td>
+                                        <th>ID</th>
+                                        <th>Code</th>
+                                        <th>Name</th>
+                                        <th>Phone</th>
+                                        <th>Email</th>
+                                        <th>Address</th>
+                                        <th>Actions</th>
                                     </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($data as $owner): ?>
+                                        <tr>
+                                            <td><?php echo $owner['owner_id']; ?></td>
+                                            <td><?php echo htmlspecialchars($owner['owner_code']); ?></td>
+                                            <td><?php echo htmlspecialchars($owner['owner_name']); ?></td>
+                                            <td><?php echo htmlspecialchars($owner['telephone_number']); ?></td>
+                                            <td><?php echo htmlspecialchars($owner['email']); ?></td>
+                                            <td><?php echo htmlspecialchars(substr($owner['address'], 0, 50)) . '...'; ?></td>
+                                            <td>
+                                                <div class="action-buttons">
+                                                    <a href="../owner/animal_owner.php?action=edit&id=<?php echo $owner['owner_id']; ?>" class="btn btn-warning">Edit</a>
+                                                    <a href="../owner/animal_owner.php?action=delete&id=<?php echo $owner['owner_id']; ?>" class="btn btn-danger" onclick="return confirm('Are you sure?')">Delete</a>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php endif; ?>
                     </div>
-                <?php endif; ?>
-            </div>
         </main>
     </div>
 
@@ -448,6 +536,23 @@ try {
                 document.body.appendChild(form);
                 form.submit();
             }
+        }
+
+        function showEditForm(userId, username, fullName, email, role) {
+            document.getElementById('edit_user_id').value = userId;
+            document.getElementById('edit_username').value = username;
+            document.getElementById('edit_full_name').value = fullName;
+            document.getElementById('edit_email').value = email;
+            document.getElementById('edit_role').value = role;
+
+            document.getElementById('editUserForm').style.display = 'block';
+            document.getElementById('editUserForm').scrollIntoView({
+                behavior: 'smooth'
+            });
+        }
+
+        function cancelEditUser() {
+            document.getElementById('editUserForm').style.display = 'none';
         }
     </script>
 
@@ -496,6 +601,42 @@ try {
         .status-staff {
             background: #e8f5e8;
             color: #2e7d32;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 10% auto;
+            padding: 20px;
+            width: 50%;
+            border-radius: 5px;
+            box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
+            overflow-y: auto;
+            max-height: 80vh;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
         }
     </style>
 </body>
