@@ -13,6 +13,22 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $db = getDB();
 
+    function decreaseMedicineStock($db, $medicine_id, $quantity)
+    {
+        $stmt = $db->prepare("UPDATE medicines SET stock_quantity = stock_quantity - ? WHERE medicine_id = ?");
+        $stmt->execute([$quantity, $medicine_id]);
+
+        // Check if stock goes below 0 (if needed)
+        $stmt = $db->prepare("SELECT stock_quantity FROM medicines WHERE medicine_id = ?");
+        $stmt->execute([$medicine_id]);
+        $stock = $stmt->fetchColumn();
+
+        if ($stock < 0) {
+            // Handle negative stock (prevent it or send notification)
+            throw new PDOException("Not enough stock for medicine");
+        }
+    }
+
     try {
         switch ($action) {
             case 'add_examination':
@@ -25,6 +41,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $routine_drugs = sanitizeInput($_POST['routine_drugs']);
                 $action_taken = sanitizeInput($_POST['action_taken']);
                 $notes = sanitizeInput($_POST['notes']);
+
+
+
 
                 $stmt = $db->prepare("
                     INSERT INTO examinations (animal_id, doctor_id, examination_date, important_disease_history, 
@@ -62,6 +81,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $action_taken,
                     $notes
                 ]);
+
+                // Create prescription medicines
+                $stmt = $db->prepare("
+                INSERT INTO prescription_medicines (examination_id, medicine_id, quantity, dosage_instructions, duration_days)
+                VALUES (?, ?, ?, ?, ?)
+            ");
+
+                foreach ($_POST['medicine_id'] as $index => $medicine_id) {
+                    $quantity = $_POST['quantity'][$index];
+                    $dosage_instructions = $_POST['dosage_instructions'][$index] ?? '';
+                    $duration_days = $_POST['duration_days'][$index];
+
+                    // Decrease stock when medicine is prescribed/used in examination
+                    decreaseMedicineStock($db, $medicine_id, $quantity);
+
+
+                    $stmt->execute([
+                        $examination_id,
+                        $medicine_id,
+                        $quantity,
+                        $dosage_instructions,
+                        $duration_days
+                    ]);
+                }
+
 
                 $message = "Examination and medical record added successfully!";
                 break;
@@ -399,6 +443,46 @@ try {
 
                             <div class="form-row">
                                 <div class="form-col">
+                                    <label>Prescribed Medicines:</label>
+                                    <div class="medicine-prescriptions">
+                                        <!-- First medicine -->
+                                        <div class="medicine-row">
+                                            <div class="form-group">
+                                                <label>Medicine:</label>
+                                                <select name="medicine_id[]" required>
+                                                    <option value="">-- Select Medicine --</option>
+                                                    <?php
+                                                    $stmt = $db->query("SELECT medicine_id, medicine_name, medicine_code FROM medicines");
+                                                    while ($row = $stmt->fetch()) {
+                                                        echo "<option value='" . $row['medicine_id'] . "'>" . $row['medicine_name'] . " (" . $row['medicine_code'] . ")</option>";
+                                                    }
+                                                    ?>
+                                                </select>
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Quantity:</label>
+                                                <input type="number" name="quantity[]" min="1" required>
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Dosage Instructions:</label>
+                                                <input type="text" name="dosage_instructions[]" placeholder="e.g., 1 tab daily">
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Duration (days):</label>
+                                                <input type="number" name="duration_days[]" min="1">
+                                            </div>
+                                        </div>
+
+                                        <!-- Button to add another medicine -->
+                                        <div style="margin-top: 10px;">
+                                            <button type="button" id="add-medicine" class="btn btn-secondary" style="margin-bottom: 15px;">+ Add Another Medicine</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-col">
                                     <label>Additional Notes:</label>
                                     <textarea name="notes" rows="3"></textarea>
                                 </div>
@@ -602,7 +686,48 @@ try {
         function viewRecord(recordId) {
             alert('View medical record details - ID: ' + recordId);
         }
+
+        // Add this JavaScript to handle adding multiple medicines
+
+        let count = 1;
+        document.getElementById('add-medicine').addEventListener('click', function() {
+            count++;
+            const newMedicine = document.createElement('div');
+            newMedicine.className = 'medicine-row';
+            newMedicine.innerHTML = `
+            <div class="form-group" style="margin-bottom: 15px;">
+                <div style="display: flex; gap: 15px; align-items: flex-start;">
+                    <div style="flex: 1;">
+                        <label>Medicine:</label>
+                        <select name="medicine_id[]" required>
+                            <option value="">-- Select Medicine --</option>
+                            <?php
+                            $stmt = $db->query("SELECT medicine_id, medicine_name, medicine_code FROM medicines");
+                            while ($row = $stmt->fetch()) {
+                                echo "<option value='" . $row['medicine_id'] . "'>" . $row['medicine_name'] . " (" . $row['medicine_code'] . ")</option>";
+                            }
+                            ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Quantity:</label>
+                        <input type="number" name="quantity[]" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Dosage Instructions:</label>
+                        <input type="text" name="dosage_instructions[]" placeholder="e.g., 1 tab daily">
+                    </div>
+                    <div class="form-group">
+                        <label>Duration (days):</label>
+                        <input type="number" name="duration_days[]" min="1">
+                    </div>
+                </div>
+            </div>
+        `;
+            document.querySelector('.medicine-prescriptions').appendChild(newMedicine);
+        });
     </script>
+
 
     <style>
         .module-nav {
