@@ -10,6 +10,15 @@ $id = $_GET['id'] ?? null;
 $message = '';
 $error = '';
 
+$db = getDB();
+
+// Always build medicines options for the form (GET and POST)
+$medicines_options = '';
+$stmt = $db->query("SELECT medicine_id, medicine_name, medicine_code FROM medicines");
+while ($row = $stmt->fetch()) {
+    $medicines_options .= "<option value='{$row['medicine_id']}'>" . htmlspecialchars($row['medicine_name']) . " (" . htmlspecialchars($row['medicine_code']) . ")</option>";
+}
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $db = getDB();
 
@@ -451,12 +460,7 @@ try {
                                                 <label>Medicine:</label>
                                                 <select name="medicine_id[]" required>
                                                     <option value="">-- Select Medicine --</option>
-                                                    <?php
-                                                    $stmt = $db->query("SELECT medicine_id, medicine_name, medicine_code FROM medicines");
-                                                    while ($row = $stmt->fetch()) {
-                                                        echo "<option value='" . $row['medicine_id'] . "'>" . $row['medicine_name'] . " (" . $row['medicine_code'] . ")</option>";
-                                                    }
-                                                    ?>
+                                                    <?php echo $medicines_options; ?>
                                                 </select>
                                             </div>
                                             <div class="form-group">
@@ -689,42 +693,39 @@ try {
 
         // Add this JavaScript to handle adding multiple medicines
 
-        let count = 1;
+        const medicinesOptions = `<?php echo $medicines_options; ?>`;
+
         document.getElementById('add-medicine').addEventListener('click', function() {
-            count++;
             const newMedicine = document.createElement('div');
             newMedicine.className = 'medicine-row';
             newMedicine.innerHTML = `
-            <div class="form-group" style="margin-bottom: 15px;">
-                <div style="display: flex; gap: 15px; align-items: flex-start;">
-                    <div style="flex: 1;">
-                        <label>Medicine:</label>
-                        <select name="medicine_id[]" required>
-                            <option value="">-- Select Medicine --</option>
-                            <?php
-                            $stmt = $db->query("SELECT medicine_id, medicine_name, medicine_code FROM medicines");
-                            while ($row = $stmt->fetch()) {
-                                echo "<option value='" . $row['medicine_id'] . "'>" . $row['medicine_name'] . " (" . $row['medicine_code'] . ")</option>";
-                            }
-                            ?>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Quantity:</label>
-                        <input type="number" name="quantity[]" min="1" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Dosage Instructions:</label>
-                        <input type="text" name="dosage_instructions[]" placeholder="e.g., 1 tab daily">
-                    </div>
-                    <div class="form-group">
-                        <label>Duration (days):</label>
-                        <input type="number" name="duration_days[]" min="1">
-                    </div>
-                </div>
-            </div>
-        `;
+        <div class="form-group">
+            <label>Medicine:</label>
+            <select name="medicine_id[]" required>
+                <option value="">-- Select Medicine --</option>
+                ${medicinesOptions}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Quantity:</label>
+            <input type="number" name="quantity[]" min="1" required>
+        </div>
+        <div class="form-group">
+            <label>Dosage Instructions:</label>
+            <input type="text" name="dosage_instructions[]" placeholder="e.g., 1 tab daily">
+        </div>
+        <div class="form-group">
+            <label>Duration (days):</label>
+            <input type="number" name="duration_days[]" min="1">
+        </div>
+        <button type="button" class="btn btn-danger remove-medicine" style="height:40px;margin-top:24px;">Remove</button>
+    `;
             document.querySelector('.medicine-prescriptions').appendChild(newMedicine);
+
+            // Add remove event
+            newMedicine.querySelector('.remove-medicine').addEventListener('click', function() {
+                newMedicine.remove();
+            });
         });
     </script>
 

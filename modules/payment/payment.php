@@ -12,7 +12,7 @@ $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $db = getDB();
-    
+
     try {
         switch ($action) {
             case 'add':
@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $payment_method = sanitizeInput($_POST['payment_method']);
                 $description = sanitizeInput($_POST['description']);
                 $status = sanitizeInput($_POST['status']);
-                
+
                 $stmt = $db->prepare("
                     INSERT INTO payments (examination_id, owner_id, amount, payment_date, payment_method, description, status) 
                     VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $stmt->execute([$examination_id, $owner_id, $amount, $payment_date, $payment_method, $description, $status]);
                 $message = "Payment added successfully!";
                 break;
-                
+
             case 'edit':
                 $payment_id = $_POST['payment_id'];
                 $examination_id = $_POST['examination_id'] ?: null;
@@ -41,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $payment_method = sanitizeInput($_POST['payment_method']);
                 $description = sanitizeInput($_POST['description']);
                 $status = sanitizeInput($_POST['status']);
-                
+
                 $stmt = $db->prepare("
                     UPDATE payments SET examination_id=?, owner_id=?, amount=?, payment_date=?, payment_method=?, description=?, status=? 
                     WHERE payment_id=?
@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $stmt->execute([$examination_id, $owner_id, $amount, $payment_date, $payment_method, $description, $status, $payment_id]);
                 $message = "Payment updated successfully!";
                 break;
-                
+
             case 'delete':
                 $payment_id = $_POST['payment_id'];
                 $stmt = $db->prepare("DELETE FROM payments WHERE payment_id=?");
@@ -81,11 +81,11 @@ try {
         ORDER BY p.payment_date DESC
     ");
     $payments = $stmt->fetchAll();
-    
+
     // Get all owners for dropdown
     $stmt = $db->query("SELECT * FROM animal_owners ORDER BY owner_name");
     $owners = $stmt->fetchAll();
-    
+
     // Get all examinations for dropdown
     $stmt = $db->query("
         SELECT e.examination_id, e.examination_date, a.animal_name, ao.owner_name
@@ -95,7 +95,7 @@ try {
         ORDER BY e.examination_date DESC
     ");
     $examinations = $stmt->fetchAll();
-    
+
     // Get specific payment if editing or viewing
     if (($action == 'edit' || $action == 'view') && $id) {
         $stmt = $db->prepare("
@@ -109,7 +109,6 @@ try {
         $stmt->execute([$id]);
         $current_payment = $stmt->fetch();
     }
-    
 } catch (PDOException $e) {
     $error = "Error loading data: " . $e->getMessage();
     logError('Payment data loading error: ' . $e->getMessage());
@@ -131,12 +130,14 @@ foreach ($payments as $payment) {
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Payment Management - <?php echo APP_NAME; ?></title>
     <link rel="stylesheet" href="../../assets/css/style.css">
 </head>
+
 <body>
     <div class="app-container">
         <!-- Side Navigation -->
@@ -145,7 +146,7 @@ foreach ($payments as $payment) {
                 <h3>Pet Clinic</h3>
                 <p>Welcome, <?php echo htmlspecialchars($_SESSION['full_name']); ?></p>
             </div>
-            
+
             <ul class="sidebar-menu">
                 <li>
                     <a href="../../dashboard.php">
@@ -153,58 +154,58 @@ foreach ($payments as $payment) {
                         Dashboard
                     </a>
                 </li>
-                
+
                 <?php if (hasPermission('admin')): ?>
-                <li>
-                    <a href="../admin/manage_admin.php">
-                        <span class="icon">👥</span>
-                        Manage Admin
-                    </a>
-                </li>
+                    <li>
+                        <a href="../admin/manage_admin.php">
+                            <span class="icon">👥</span>
+                            Manage Admin
+                        </a>
+                    </li>
                 <?php endif; ?>
-                
+
                 <li>
                     <a href="../doctor/doctor.php">
                         <span class="icon">👨‍⚕️</span>
                         Doctor
                     </a>
                 </li>
-                
+
                 <li>
                     <a href="../animal/animal.php">
                         <span class="icon">🐕</span>
                         Animal
                     </a>
                 </li>
-                
+
                 <li>
                     <a href="../owner/animal_owner.php">
                         <span class="icon">👤</span>
                         Animal Owner
                     </a>
                 </li>
-                
+
                 <li>
                     <a href="../examination/examination.php">
                         <span class="icon">🔍</span>
                         Examination
                     </a>
                 </li>
-                
+
                 <li>
                     <a href="../medicine/medicine.php">
                         <span class="icon">💊</span>
                         Medicine
                     </a>
                 </li>
-                
+
                 <li class="active">
                     <a href="payment.php">
                         <span class="icon">💰</span>
                         Payment
                     </a>
                 </li>
-                
+
                 <li class="logout">
                     <a href="../../logout.php">
                         <span class="icon">🚪</span>
@@ -213,22 +214,22 @@ foreach ($payments as $payment) {
                 </li>
             </ul>
         </nav>
-        
+
         <!-- Main Content -->
         <main class="main-content">
             <div class="content-header">
                 <h1>Payment Management</h1>
                 <p class="current-date">Today: <?php echo date('F j, Y'); ?></p>
             </div>
-            
+
             <?php if (!empty($message)): ?>
                 <div class="alert alert-success"><?php echo htmlspecialchars($message); ?></div>
             <?php endif; ?>
-            
+
             <?php if (!empty($error)): ?>
                 <div class="alert alert-error"><?php echo htmlspecialchars($error); ?></div>
             <?php endif; ?>
-            
+
             <!-- Payment Statistics -->
             <?php if ($action == 'list'): ?>
                 <div class="payment-stats">
@@ -239,7 +240,7 @@ foreach ($payments as $payment) {
                             <p>Total Revenue</p>
                         </div>
                     </div>
-                    
+
                     <div class="stat-card">
                         <div class="stat-icon">✅</div>
                         <div class="stat-info">
@@ -247,7 +248,7 @@ foreach ($payments as $payment) {
                             <p>Paid Amount</p>
                         </div>
                     </div>
-                    
+
                     <div class="stat-card">
                         <div class="stat-icon">⏳</div>
                         <div class="stat-info">
@@ -255,7 +256,7 @@ foreach ($payments as $payment) {
                             <p>Pending Amount</p>
                         </div>
                     </div>
-                    
+
                     <div class="stat-card">
                         <div class="stat-icon">📊</div>
                         <div class="stat-info">
@@ -265,7 +266,7 @@ foreach ($payments as $payment) {
                     </div>
                 </div>
             <?php endif; ?>
-            
+
             <!-- Action Navigation -->
             <div class="module-nav">
                 <a href="?action=list" class="btn <?php echo $action == 'list' ? 'btn-primary' : 'btn-secondary'; ?>">All Payments</a>
@@ -273,23 +274,27 @@ foreach ($payments as $payment) {
                 <a href="?action=paid" class="btn <?php echo $action == 'paid' ? 'btn-primary' : 'btn-secondary'; ?>">Paid</a>
                 <a href="?action=add" class="btn btn-success">Add Payment</a>
             </div>
-            
+
             <!-- Content based on action -->
             <?php if ($action == 'list' || $action == 'pending' || $action == 'paid'): ?>
                 <?php
                 $filtered_payments = $payments;
                 if ($action == 'pending') {
-                    $filtered_payments = array_filter($payments, function($p) { return $p['status'] == 'pending'; });
+                    $filtered_payments = array_filter($payments, function ($p) {
+                        return $p['status'] == 'pending';
+                    });
                 } elseif ($action == 'paid') {
-                    $filtered_payments = array_filter($payments, function($p) { return $p['status'] == 'paid'; });
+                    $filtered_payments = array_filter($payments, function ($p) {
+                        return $p['status'] == 'paid';
+                    });
                 }
                 ?>
-                
+
                 <div class="section-header">
                     <h2><?php echo ucfirst($action); ?> Payments</h2>
                     <a href="?action=add" class="btn btn-success">Add New Payment</a>
                 </div>
-                
+
                 <div class="table-container">
                     <table class="data-table">
                         <thead>
@@ -332,7 +337,7 @@ foreach ($payments as $payment) {
                         </tbody>
                     </table>
                 </div>
-                
+
             <?php elseif ($action == 'add'): ?>
                 <div class="form-container">
                     <h2>Add New Payment</h2>
@@ -361,7 +366,7 @@ foreach ($payments as $payment) {
                                 </select>
                             </div>
                         </div>
-                        
+
                         <div class="form-row">
                             <div class="form-col">
                                 <label>Amount:</label>
@@ -372,7 +377,7 @@ foreach ($payments as $payment) {
                                 <input type="date" name="payment_date" value="<?php echo date('Y-m-d'); ?>" required>
                             </div>
                         </div>
-                        
+
                         <div class="form-row">
                             <div class="form-col">
                                 <label>Payment Method:</label>
@@ -394,27 +399,27 @@ foreach ($payments as $payment) {
                                 </select>
                             </div>
                         </div>
-                        
+
                         <div class="form-row">
                             <div class="form-col">
                                 <label>Description:</label>
                                 <textarea name="description" rows="3" placeholder="Payment description, services provided, etc."></textarea>
                             </div>
                         </div>
-                        
+
                         <div class="action-buttons">
                             <button type="submit" class="btn btn-success">Add Payment</button>
                             <a href="?action=list" class="btn btn-secondary">Cancel</a>
                         </div>
                     </form>
                 </div>
-                
+
             <?php elseif ($action == 'edit' && $current_payment): ?>
                 <div class="form-container">
                     <h2>Edit Payment</h2>
                     <form method="POST" action="?action=edit">
                         <input type="hidden" name="payment_id" value="<?php echo $current_payment['payment_id']; ?>">
-                        
+
                         <div class="form-row">
                             <div class="form-col">
                                 <label>Owner:</label>
@@ -439,7 +444,7 @@ foreach ($payments as $payment) {
                                 </select>
                             </div>
                         </div>
-                        
+
                         <div class="form-row">
                             <div class="form-col">
                                 <label>Amount:</label>
@@ -450,7 +455,7 @@ foreach ($payments as $payment) {
                                 <input type="date" name="payment_date" value="<?php echo $current_payment['payment_date']; ?>" required>
                             </div>
                         </div>
-                        
+
                         <div class="form-row">
                             <div class="form-col">
                                 <label>Payment Method:</label>
@@ -472,21 +477,21 @@ foreach ($payments as $payment) {
                                 </select>
                             </div>
                         </div>
-                        
+
                         <div class="form-row">
                             <div class="form-col">
                                 <label>Description:</label>
                                 <textarea name="description" rows="3"><?php echo htmlspecialchars($current_payment['description']); ?></textarea>
                             </div>
                         </div>
-                        
+
                         <div class="action-buttons">
                             <button type="submit" class="btn btn-success">Update Payment</button>
                             <a href="?action=list" class="btn btn-secondary">Cancel</a>
                         </div>
                     </form>
                 </div>
-                
+
             <?php elseif ($action == 'view' && $current_payment): ?>
                 <div class="payment-detail">
                     <div class="detail-header">
@@ -496,7 +501,7 @@ foreach ($payments as $payment) {
                             <a href="?action=list" class="btn btn-secondary">Back to List</a>
                         </div>
                     </div>
-                    
+
                     <div class="detail-section">
                         <div class="detail-grid">
                             <div class="detail-row">
@@ -555,26 +560,26 @@ foreach ($payments as $payment) {
             <?php endif; ?>
         </main>
     </div>
-    
+
     <script>
         function deletePayment(paymentId) {
             if (confirm('Are you sure you want to delete this payment?')) {
                 const form = document.createElement('form');
                 form.method = 'POST';
                 form.action = '?action=delete';
-                
+
                 const input = document.createElement('input');
                 input.type = 'hidden';
                 input.name = 'payment_id';
                 input.value = paymentId;
-                
+
                 form.appendChild(input);
                 document.body.appendChild(form);
                 form.submit();
             }
         }
     </script>
-    
+
     <style>
         .module-nav {
             margin-bottom: 30px;
@@ -582,82 +587,82 @@ foreach ($payments as $payment) {
             gap: 10px;
             flex-wrap: wrap;
         }
-        
+
         .section-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
         }
-        
+
         .alert {
             padding: 15px;
             margin-bottom: 20px;
             border-radius: 5px;
         }
-        
+
         .alert-success {
             background: #d4edda;
             color: #155724;
             border: 1px solid #c3e6cb;
         }
-        
+
         .alert-error {
             background: #f8d7da;
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
-        
+
         .payment-stats {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
-        
+
         .detail-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 30px;
         }
-        
+
         .detail-section {
             background: white;
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
-        
+
         .detail-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 15px;
         }
-        
+
         .detail-row {
             display: flex;
             padding: 10px 0;
             border-bottom: 1px solid #eee;
         }
-        
+
         .detail-row label {
             font-weight: 600;
             width: 150px;
             color: #555;
         }
-        
+
         .detail-row span {
             flex: 1;
             color: #333;
         }
-        
+
         .amount {
             font-size: 1.2em;
             font-weight: bold;
             color: #27ae60;
         }
-        
+
         .status-paid {
             background: #d4edda;
             color: #155724;
@@ -667,7 +672,7 @@ foreach ($payments as $payment) {
             font-weight: 600;
             text-transform: uppercase;
         }
-        
+
         .status-pending {
             background: #fff3cd;
             color: #856404;
@@ -677,7 +682,7 @@ foreach ($payments as $payment) {
             font-weight: 600;
             text-transform: uppercase;
         }
-        
+
         .status-partial {
             background: #d1ecf1;
             color: #0c5460;
@@ -687,7 +692,7 @@ foreach ($payments as $payment) {
             font-weight: 600;
             text-transform: uppercase;
         }
-        
+
         .status-cancelled {
             background: #f8d7da;
             color: #721c24;
@@ -697,20 +702,20 @@ foreach ($payments as $payment) {
             font-weight: 600;
             text-transform: uppercase;
         }
-        
+
         @media (max-width: 768px) {
             .payment-stats {
                 grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
             }
-            
+
             .detail-grid {
                 grid-template-columns: 1fr;
             }
-            
+
             .detail-row {
                 flex-direction: column;
             }
-            
+
             .detail-row label {
                 width: auto;
                 margin-bottom: 5px;
@@ -718,5 +723,5 @@ foreach ($payments as $payment) {
         }
     </style>
 </body>
-</html>
 
+</html>
